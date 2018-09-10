@@ -175,14 +175,21 @@ func TestValidateSpec(t *testing.T) {
 		}
 	}
 
-	image := "spark"
+	image := v1alpha1.ContainerImage("spark")
 	remoteMainAppFile := "https://localhost/path/to/main/app/file"
 	containerLocalMainAppFile := "local:///path/to/main/app/file"
 	testcases := []testcase{
 		{
 			name: "application with spec.image set",
 			spec: v1alpha1.SparkApplicationSpec{
-				Image: &image,
+				Image: image,
+			},
+			expectsValidationError: false,
+		},
+		{
+			name: "application with spec.image set",
+			spec: v1alpha1.SparkApplicationSpec{
+				Image: v1alpha1.UseDefaultContainerImage,
 			},
 			expectsValidationError: false,
 		},
@@ -191,7 +198,7 @@ func TestValidateSpec(t *testing.T) {
 			spec: v1alpha1.SparkApplicationSpec{
 				Executor: v1alpha1.ExecutorSpec{
 					SparkPodSpec: v1alpha1.SparkPodSpec{
-						Image: &image,
+						Image: image,
 					},
 				},
 			},
@@ -202,7 +209,7 @@ func TestValidateSpec(t *testing.T) {
 			spec: v1alpha1.SparkApplicationSpec{
 				Driver: v1alpha1.DriverSpec{
 					SparkPodSpec: v1alpha1.SparkPodSpec{
-						Image: &image,
+						Image: image,
 					},
 				},
 			},
@@ -218,7 +225,7 @@ func TestValidateSpec(t *testing.T) {
 		{
 			name: "application with remote main file and spec.image",
 			spec: v1alpha1.SparkApplicationSpec{
-				Image:               &image,
+				Image:               image,
 				MainApplicationFile: &remoteMainAppFile,
 			},
 			expectsValidationError: false,
@@ -226,16 +233,16 @@ func TestValidateSpec(t *testing.T) {
 		{
 			name: "application with remote main file and spec.initContainerImage",
 			spec: v1alpha1.SparkApplicationSpec{
-				InitContainerImage:  &image,
+				InitContainerImage:  image,
 				MainApplicationFile: &remoteMainAppFile,
 				Driver: v1alpha1.DriverSpec{
 					SparkPodSpec: v1alpha1.SparkPodSpec{
-						Image: &image,
+						Image: image,
 					},
 				},
 				Executor: v1alpha1.ExecutorSpec{
 					SparkPodSpec: v1alpha1.SparkPodSpec{
-						Image: &image,
+						Image: image,
 					},
 				},
 			},
@@ -247,12 +254,12 @@ func TestValidateSpec(t *testing.T) {
 				MainApplicationFile: &containerLocalMainAppFile,
 				Driver: v1alpha1.DriverSpec{
 					SparkPodSpec: v1alpha1.SparkPodSpec{
-						Image: &image,
+						Image: image,
 					},
 				},
 				Executor: v1alpha1.ExecutorSpec{
 					SparkPodSpec: v1alpha1.SparkPodSpec{
-						Image: &image,
+						Image: image,
 					},
 				},
 			},
@@ -274,8 +281,8 @@ func TestLoadFromYAML(t *testing.T) {
 	assert.Equal(t, app.Name, "example")
 	assert.Equal(t, *app.Spec.MainClass, "org.examples.SparkExample")
 	assert.Equal(t, *app.Spec.MainApplicationFile, "local:///path/to/example.jar")
-	assert.Equal(t, *app.Spec.Driver.Image, "spark")
-	assert.Equal(t, *app.Spec.Executor.Image, "spark")
+	assert.Equal(t, app.Spec.Driver.Image, v1alpha1.ContainerImage("spark"))
+	assert.Equal(t, app.Spec.Executor.Image, v1alpha1.ContainerImage("spark"))
 	assert.Equal(t, int(*app.Spec.Executor.Instances), 1)
 }
 

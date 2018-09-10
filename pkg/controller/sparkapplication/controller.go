@@ -71,6 +71,7 @@ type Controller struct {
 	appStateReportingChan <-chan *appStateUpdate
 	podStateReportingChan <-chan interface{}
 	metrics               *sparkAppMetrics
+	appDefaultConfig      *util.AppDefaultConfig
 }
 
 // NewController creates a new Controller.
@@ -80,6 +81,7 @@ func NewController(
 	extensionsClient apiextensionsclient.Interface,
 	informerFactory crdinformers.SharedInformerFactory,
 	submissionRunnerWorkers int,
+	appDefaultConfig *util.AppDefaultConfig,
 	metricsConfig *util.MetricConfig,
 	namespace string) *Controller {
 	crdscheme.AddToScheme(scheme.Scheme)
@@ -92,7 +94,7 @@ func NewController(
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "spark-operator"})
 
 	return newSparkApplicationController(crdClient, kubeClient, extensionsClient, informerFactory, recorder,
-		submissionRunnerWorkers, metricsConfig, namespace)
+		submissionRunnerWorkers, appDefaultConfig, metricsConfig, namespace)
 }
 
 func newSparkApplicationController(
@@ -102,6 +104,7 @@ func newSparkApplicationController(
 	informerFactory crdinformers.SharedInformerFactory,
 	eventRecorder record.EventRecorder,
 	submissionRunnerWorkers int,
+	appDefaultConfig *util.AppDefaultConfig,
 	metricsConfig *util.MetricConfig,
 	namespace string) *Controller {
 	queue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(),
@@ -123,6 +126,7 @@ func newSparkApplicationController(
 		sparkPodMonitor:       sparkPodMonitor,
 		appStateReportingChan: appStateReportingChan,
 		podStateReportingChan: podStateReportingChan,
+		appDefaultConfig:      appDefaultConfig,
 	}
 
 	if metricsConfig != nil {
@@ -338,6 +342,11 @@ func (c *Controller) createSubmission(app *v1alpha1.SparkApplication) error {
 	} else {
 		appStatus.DriverInfo.WebUIServiceName = name
 		appStatus.DriverInfo.WebUIPort = port
+	}
+
+	if app.Spec.Image == v1alpha1.UseDefaultContainerImage {
+		image := v1alpha1.ContainerImage(c.appDefaultConfig.UnifiedSparkImage)
+		app.Spec.Image = image
 	}
 
 	if app.Spec.Monitoring != nil && app.Spec.Monitoring.Prometheus != nil {

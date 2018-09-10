@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
+
 	apiv1 "k8s.io/api/core/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+
 	"k8s.io/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io/v1alpha1"
 	crdclientfake "k8s.io/spark-on-k8s-operator/pkg/client/clientset/versioned/fake"
 	crdinformers "k8s.io/spark-on-k8s-operator/pkg/client/informers/externalversions"
@@ -62,7 +63,7 @@ func newFakeController(apps ...*v1alpha1.SparkApplication) (*Controller, *record
 	})
 
 	controller := newSparkApplicationController(crdClient, kubeClient, apiExtensionsClient, informerFactory, recorder,
-		1, &util.MetricConfig{}, "test")
+		1, &util.AppDefaultConfig{}, &util.MetricConfig{}, "test")
 
 	informer := informerFactory.Sparkoperator().V1alpha1().SparkApplications().Informer()
 	for _, app := range apps {
@@ -76,23 +77,106 @@ func TestSubmitApp(t *testing.T) {
 	os.Setenv(kubernetesServiceHostEnvVar, "localhost")
 	os.Setenv(kubernetesServicePortEnvVar, "443")
 
-	app := &v1alpha1.SparkApplication{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "foo",
-			Namespace: "default",
+	type testcase struct {
+		name                  string
+		app                   *v1alpha1.SparkApplication
+		defaultAppImageString string
+		expectedImage         v1alpha1.ContainerImage
+	}
+
+	testcases := []testcase{
+		{
+			name: "create spark application with user provided spark image",
+			app: &v1alpha1.SparkApplication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "foo",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.SparkApplicationSpec{
+					Image: v1alpha1.ContainerImage("custom-spark-image"),
+				},
+			},
+			defaultAppImageString: "",
+			expectedImage:         v1alpha1.ContainerImage("custom-spark-image"),
+		},
+		{
+			name: "create spark application without both default and custom images specified",
+			app: &v1alpha1.SparkApplication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "foo",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.SparkApplicationSpec{},
+			},
+			defaultAppImageString: "",
+			expectedImage:         v1alpha1.ContainerImage(""),
+		},
+		{
+			name: "create spark application with user provided spark image despite default provided",
+			app: &v1alpha1.SparkApplication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "foo",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.SparkApplicationSpec{
+					Image: v1alpha1.ContainerImage("custom-spark-image"),
+				},
+			},
+			defaultAppImageString: "spark",
+			expectedImage:         v1alpha1.ContainerImage("custom-spark-image"),
+		},
+		{
+			name: "create spark application with default image, but default not specified in app default config",
+			app: &v1alpha1.SparkApplication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "foo",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.SparkApplicationSpec{
+					Image: v1alpha1.UseDefaultContainerImage,
+				},
+			},
+			defaultAppImageString: "",
+			expectedImage:         v1alpha1.ContainerImage(""),
+		},
+		{
+			name: "create spark application using default spark image provided in default app config",
+			app: &v1alpha1.SparkApplication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "foo",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.SparkApplicationSpec{
+					Image: v1alpha1.UseDefaultContainerImage,
+				},
+			},
+			defaultAppImageString: "default-spark-image",
+			expectedImage:         v1alpha1.ContainerImage("default-spark-image"),
 		},
 	}
 
-	ctrl, _ := newFakeController(app)
-	_, err := ctrl.crdClient.SparkoperatorV1alpha1().SparkApplications(app.Namespace).Create(app)
-	if err != nil {
-		t.Fatal(err)
+	testFn := func(t *testing.T, test testcase) {
+		app := test.app.DeepCopy()
+		ctrl, _ := newFakeController(app)
+
+		appDefaultConfig := util.AppDefaultConfig{UnifiedSparkImage: test.defaultAppImageString}
+		ctrl.appDefaultConfig = &appDefaultConfig
+
+		_, err := ctrl.crdClient.SparkoperatorV1alpha1().SparkApplications(app.Namespace).Create(app)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		go ctrl.createSubmission(app)
+		submission := <-ctrl.runner.queue
+		assert.Equal(t, app.Spec.Image, test.expectedImage)
+		assert.Equal(t, app.Name, submission.name)
+		assert.Equal(t, app.Namespace, submission.namespace)
 	}
 
-	go ctrl.createSubmission(app)
-	submission := <-ctrl.runner.queue
-	assert.Equal(t, app.Name, submission.name)
-	assert.Equal(t, app.Namespace, submission.namespace)
+	for _, test := range testcases {
+		testFn(t, test)
+	}
 }
 
 func TestOnAdd(t *testing.T) {
@@ -178,7 +262,7 @@ func TestOnUpdate(t *testing.T) {
 		},
 		Spec: v1alpha1.SparkApplicationSpec{
 			Mode:  v1alpha1.ClusterMode,
-			Image: stringptr("foo-image:v1"),
+			Image: v1alpha1.ContainerImage("foo-image:v1"),
 			Executor: v1alpha1.ExecutorSpec{
 				Instances: int32ptr(1),
 			},
@@ -186,7 +270,7 @@ func TestOnUpdate(t *testing.T) {
 	}
 
 	copyWithDifferentImage := appTemplate.DeepCopy()
-	copyWithDifferentImage.Spec.Image = stringptr("foo-image:v2")
+	copyWithDifferentImage.Spec.Image = v1alpha1.ContainerImage("foo-image:v2")
 	copyWithDifferentImage.ResourceVersion = "2"
 
 	copyWithDifferentExecutorInstances := appTemplate.DeepCopy()

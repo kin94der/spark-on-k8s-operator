@@ -41,6 +41,7 @@ import (
 	crdscheme "k8s.io/spark-on-k8s-operator/pkg/client/clientset/versioned/scheme"
 	crdinformers "k8s.io/spark-on-k8s-operator/pkg/client/informers/externalversions"
 	crdlisters "k8s.io/spark-on-k8s-operator/pkg/client/listers/sparkoperator.k8s.io/v1alpha1"
+	"k8s.io/spark-on-k8s-operator/pkg/util"
 )
 
 var (
@@ -55,6 +56,7 @@ type Controller struct {
 	cacheSynced      cache.InformerSynced
 	ssaLister        crdlisters.ScheduledSparkApplicationLister
 	saLister         crdlisters.SparkApplicationLister
+	appDefaultConfig *util.AppDefaultConfig
 	clock            clock.Clock
 }
 
@@ -63,6 +65,7 @@ func NewController(
 	kubeClient kubernetes.Interface,
 	extensionsClient apiextensionsclient.Interface,
 	informerFactory crdinformers.SharedInformerFactory,
+	appDefaultConfig *util.AppDefaultConfig,
 	clock clock.Clock) *Controller {
 	crdscheme.AddToScheme(scheme.Scheme)
 
@@ -74,6 +77,7 @@ func NewController(
 		kubeClient:       kubeClient,
 		extensionsClient: extensionsClient,
 		queue:            queue,
+		appDefaultConfig: appDefaultConfig,
 		clock:            clock,
 	}
 
@@ -257,6 +261,12 @@ func (c *Controller) createSparkApplication(
 		UID:        scheduledApp.UID,
 	})
 	app.ObjectMeta.SetLabels(scheduledApp.GetLabels())
+
+	if app.Spec.Image == v1alpha1.UseDefaultContainerImage {
+		image := v1alpha1.ContainerImage(c.appDefaultConfig.UnifiedSparkImage)
+		app.Spec.Image = image
+	}
+
 	_, err := c.crdClient.SparkoperatorV1alpha1().SparkApplications(scheduledApp.Namespace).Create(app)
 	if err != nil {
 		return "", err

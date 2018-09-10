@@ -54,6 +54,15 @@ const (
 	Always    RestartPolicy = "Always"
 )
 
+// ContainerImage is a string representing registry, image name and image tag of a container for
+// drivers, executors and init containers
+type ContainerImage string
+
+// One can specify ContainerImage as Default in order to inherit container image from application default config
+const (
+	UseDefaultContainerImage ContainerImage = "Default"
+)
+
 // +genclient
 // +genclient:noStatus
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -155,10 +164,10 @@ type SparkApplicationSpec struct {
 	// Image is the container image for the driver, executor, and init-container. Any custom container images for the
 	// driver, executor, or init-container takes precedence over this.
 	// Optional.
-	Image *string `json:"image,omitempty"`
+	Image ContainerImage `json:"image,omitempty"`
 	// InitContainerImage is the image of the init-container to use. Overrides Spec.Image if set.
 	// Optional.
-	InitContainerImage *string `json:"initContainerImage,omitempty"`
+	InitContainerImage ContainerImage `json:"initContainerImage,omitempty"`
 	// ImagePullPolicy is the image pull policy for the driver, executor, and init-container.
 	// Optional.
 	ImagePullPolicy *string `json:"imagePullPolicy,omitempty"`
@@ -326,7 +335,7 @@ type SparkPodSpec struct {
 	MemoryOverhead *string `json:"memoryOverhead,omitempty"`
 	// Image is the container image to use. Overrides Spec.Image if set.
 	// Optional.
-	Image *string `json:"image,omitempty"`
+	Image ContainerImage `json:"image,omitempty"`
 	// ConfigMaps carries information of other ConfigMaps to add to the pod.
 	// Optional.
 	ConfigMaps []NamePath `json:"configMaps,omitempty"`

@@ -136,7 +136,7 @@ func loadFromYAML(yamlFile string) (*v1alpha1.SparkApplication, error) {
 }
 
 func validateSpec(spec v1alpha1.SparkApplicationSpec) error {
-	if spec.Image == nil && (spec.Driver.Image == nil || spec.Executor.Image == nil) {
+	if spec.Image == "" && (spec.Driver.Image == "" || spec.Executor.Image == "") {
 		return fmt.Errorf("'spec.driver.image' and 'spec.executor.image' cannot be empty when 'spec.image' " +
 			"is not set")
 	}
@@ -145,7 +145,7 @@ func validateSpec(spec v1alpha1.SparkApplicationSpec) error {
 	if err != nil {
 		return err
 	}
-	if spec.Image == nil && spec.InitContainerImage == nil && yes {
+	if spec.Image == "" && spec.InitContainerImage == "" && yes {
 		return fmt.Errorf("'spec.image' and 'spec.initContainerImage' cannot be both empty when " +
 			"non-container-local dependencies are used")
 	}

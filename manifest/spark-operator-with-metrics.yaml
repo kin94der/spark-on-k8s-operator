@@ -52,5 +52,6 @@ spec:
           - containerPort: 10254
         args:
         - -logtostderr
+        - -default-spark-image=gcr.io/spark-operator/spark:v2.3.1
         - -enable-metrics=true
         - -metrics-labels=app_type

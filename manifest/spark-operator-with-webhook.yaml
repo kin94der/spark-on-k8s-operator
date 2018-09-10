@@ -55,6 +55,7 @@ spec:
         command: ["/usr/bin/spark-operator"]
         args:
         - -logtostderr
+        - -default-spark-image=gcr.io/spark-operator/spark:v2.3.1
         - -enable-webhook=true
 ---
 kind: Service

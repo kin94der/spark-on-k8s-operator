@@ -63,6 +63,7 @@ var (
 	metricsPort             = flag.String("metrics-port", "10254", "Port for the metrics endpoint.")
 	metricsEndpoint         = flag.String("metrics-endpoint", "/metrics", "Metrics endpoint.")
 	metricsPrefix           = flag.String("metrics-prefix", "", "Prefix for the metrics.")
+	defaultSparkImage       = flag.String("default-spark-image", "", "Default unified container image for the Spark application (both on driver and executor)")
 )
 
 func main() {
@@ -78,6 +79,10 @@ func main() {
 	kubeClient, err := clientset.NewForConfig(config)
 	if err != nil {
 		glog.Fatal(err)
+	}
+
+	appDefaultConfig := &util.AppDefaultConfig{
+		UnifiedSparkImage: *defaultSparkImage,
 	}
 
 	var metricConfig *util.MetricConfig
@@ -128,9 +133,9 @@ func main() {
 		time.Duration(*resyncInterval)*time.Second,
 		factoryOpts...)
 	applicationController := sparkapplication.NewController(
-		crdClient, kubeClient, apiExtensionsClient, factory, *submissionRunnerThreads, metricConfig, *namespace)
+		crdClient, kubeClient, apiExtensionsClient, factory, *submissionRunnerThreads, appDefaultConfig, metricConfig, *namespace)
 	scheduledApplicationController := scheduledsparkapplication.NewController(
-		crdClient, kubeClient, apiExtensionsClient, factory, clock.RealClock{})
+		crdClient, kubeClient, apiExtensionsClient, factory, appDefaultConfig, clock.RealClock{})
 
 	// Start the informer factory that in turn starts the informer.
 	go factory.Start(stopCh)

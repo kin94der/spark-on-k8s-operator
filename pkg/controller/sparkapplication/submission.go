@@ -68,13 +68,13 @@ func buildSubmissionCommandArgs(app *v1alpha1.SparkApplication) ([]string, error
 	// Add application dependencies.
 	args = append(args, addDependenciesConfOptions(app)...)
 
-	if app.Spec.Image != nil {
+	if app.Spec.Image != "" {
 		args = append(args, "--conf",
-			fmt.Sprintf("%s=%s", config.SparkContainerImageKey, *app.Spec.Image))
+			fmt.Sprintf("%s=%s", config.SparkContainerImageKey, app.Spec.Image))
 	}
-	if app.Spec.InitContainerImage != nil {
+	if app.Spec.InitContainerImage != "" {
 		args = append(args, "--conf",
-			fmt.Sprintf("%s=%s", config.SparkInitContainerImage, *app.Spec.InitContainerImage))
+			fmt.Sprintf("%s=%s", config.SparkInitContainerImage, app.Spec.InitContainerImage))
 	}
 	if app.Spec.ImagePullPolicy != nil {
 		args = append(args, "--conf",
@@ -235,9 +235,9 @@ func addDriverConfOptions(app *v1alpha1.SparkApplication) ([]string, error) {
 			fmt.Sprintf("%s=%s", config.SparkDriverPodNameKey, *app.Spec.Driver.PodName))
 	}
 
-	if app.Spec.Driver.Image != nil {
+	if app.Spec.Driver.Image != "" {
 		driverConfOptions = append(driverConfOptions,
-			fmt.Sprintf("%s=%s", config.SparkDriverContainerImageKey, *app.Spec.Driver.Image))
+			fmt.Sprintf("%s=%s", config.SparkDriverContainerImageKey, app.Spec.Driver.Image))
 	}
 
 	if app.Spec.Driver.Cores != nil {
@@ -320,9 +320,9 @@ func addExecutorConfOptions(app *v1alpha1.SparkApplication) ([]string, error) {
 		executorConfOptions = append(executorConfOptions, conf)
 	}
 
-	if app.Spec.Executor.Image != nil {
+	if app.Spec.Executor.Image != "" {
 		executorConfOptions = append(executorConfOptions,
-			fmt.Sprintf("%s=%s", config.SparkExecutorContainerImageKey, *app.Spec.Executor.Image))
+			fmt.Sprintf("%s=%s", config.SparkExecutorContainerImageKey, app.Spec.Executor.Image))
 	}
 
 	if app.Spec.Executor.CoreRequest != nil {
